@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>家具图像搜索</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: #f9f9f9;
+      color: #35495e;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .header h1 {
+      font-size: 24px;
+      font-weight: 600;
+      color: #35495e;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header h1 span {
+      color: #42b883;
+    }
+
+    .api-config {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .api-config label {
+      font-size: 13px;
+      color: #6c757d;
+    }
+
+    .api-config input {
+      padding: 8px 12px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 13px;
+      width: 240px;
+      transition: border-color 0.2s;
+    }
+
+    .api-config input:focus {
+      outline: none;
+      border-color: #42b883;
+    }
+
+    /* Search Panel */
+    .search-panel {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+      margin-bottom: 32px;
+    }
+
+    .search-content {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 32px;
+    }
+
+    @media (max-width: 768px) {
+      .search-content {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Upload Area */
+    .upload-area {
+      position: relative;
+      border: 2px dashed #d0d0d0;
+      border-radius: 12px;
+      height: 220px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #fafafa;
+    }
+
+    .upload-area:hover,
+    .upload-area.dragover {
+      border-color: #42b883;
+      background: rgba(66, 184, 131, 0.04);
+    }
+
+    .upload-area.has-image {
+      border-style: solid;
+      border-color: #42b883;
+    }
+
+    .upload-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      opacity: 0.4;
+    }
+
+    .upload-text {
+      font-size: 14px;
+      color: #6c757d;
+    }
+
+    .upload-hint {
+      font-size: 12px;
+      color: #adb5bd;
+      margin-top: 4px;
+    }
+
+    .image-preview {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      border-radius: 10px;
+    }
+
+    .clear-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: rgba(0, 0, 0, 0.5);
+      color: #fff;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .clear-btn:hover {
+      background: rgba(0, 0, 0, 0.7);
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .control-group label {
+      font-size: 14px;
+      font-weight: 500;
+      color: #35495e;
+    }
+
+    .control-group .hint {
+      font-size: 12px;
+      color: #adb5bd;
+      font-weight: normal;
+    }
+
+    .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .slider-container input[type="range"] {
+      flex: 1;
+      height: 6px;
+      -webkit-appearance: none;
+      background: #e9ecef;
+      border-radius: 3px;
+      outline: none;
+    }
+
+    .slider-container input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      background: #42b883;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(66, 184, 131, 0.3);
+    }
+
+    .slider-value {
+      min-width: 36px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 600;
+      color: #42b883;
+    }
+
+    .text-input {
+      padding: 10px 14px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .text-input:focus {
+      outline: none;
+      border-color: #42b883;
+    }
+
+    .search-btn {
+      margin-top: auto;
+      padding: 14px 28px;
+      background: #42b883;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .search-btn:hover:not(:disabled) {
+      background: #3aa876;
+      transform: translateY(-1px);
+    }
+
+    .search-btn:disabled {
+      background: #a8d8c0;
+      cursor: not-allowed;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Results */
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .results-header h2 {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .results-meta {
+      font-size: 13px;
+      color: #6c757d;
+    }
+
+    .query-desc {
+      background: rgba(66, 184, 131, 0.08);
+      border-left: 3px solid #42b883;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      border-radius: 0 8px 8px 0;
+      font-size: 14px;
+      color: #35495e;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 20px;
+    }
+
+    .result-card {
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .result-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+    }
+
+    .card-image {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      background: #f5f5f5;
+    }
+
+    .card-body {
+      padding: 14px;
+    }
+
+    .card-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: #35495e;
+      margin-bottom: 8px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      line-height: 1.4;
+    }
+
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-price {
+      font-size: 16px;
+      font-weight: 600;
+      color: #42b883;
+    }
+
+    .card-score {
+      font-size: 11px;
+      background: #f0f0f0;
+      padding: 3px 8px;
+      border-radius: 10px;
+      color: #6c757d;
+    }
+
+    /* Empty & Error States */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #adb5bd;
+    }
+
+    .empty-state .icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .empty-state p {
+      font-size: 15px;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #dc3545;
+      color: #fff;
+      padding: 14px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 1000;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    /* Hidden file input */
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="container">
+      <!-- Header -->
+      <header class="header">
+        <h1>
+          <span>◇</span> 家具图像搜索
+        </h1>
+        <div class="api-config">
+          <label>API 地址:</label>
+          <input type="text" v-model="apiUrl" placeholder="http://localhost:8000">
+        </div>
+      </header>
+
+      <!-- Search Panel -->
+      <section class="search-panel">
+        <div class="search-content">
+          <!-- Upload Area -->
+          <div
+            class="upload-area"
+            :class="{ dragover: isDragging, 'has-image': imagePreview }"
+            @click="triggerFileInput"
+            @dragover.prevent="isDragging = true"
+            @dragleave="isDragging = false"
+            @drop.prevent="handleDrop"
+          >
+            <template v-if="imagePreview">
+              <img :src="imagePreview" class="image-preview" alt="预览">
+              <button class="clear-btn" @click.stop="clearImage">×</button>
+            </template>
+            <template v-else>
+              <div class="upload-icon">📷</div>
+              <div class="upload-text">拖拽或点击上传图片</div>
+              <div class="upload-hint">支持 JPG、PNG、WebP</div>
+            </template>
+          </div>
+          <input
+            type="file"
+            ref="fileInput"
+            class="hidden"
+            accept="image/*"
+            @change="handleFileSelect"
+          >
+
+          <!-- Controls -->
+          <div class="controls">
+            <div class="control-group">
+              <label>返回数量 <span class="hint">(1-100)</span></label>
+              <div class="slider-container">
+                <input type="range" v-model.number="topK" min="1" max="100">
+                <span class="slider-value">{{ topK }}</span>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label>品类提示 <span class="hint">(可选)</span></label>
+              <input
+                type="text"
+                class="text-input"
+                v-model="categoryHint"
+                placeholder="如：沙发、餐桌、床..."
+              >
+            </div>
+
+            <button
+              class="search-btn"
+              :disabled="!imageFile || loading"
+              @click="search"
+            >
+              <span v-if="loading" class="spinner"></span>
+              <template v-else>🔍</template>
+              {{ loading ? '搜索中...' : '开始搜索' }}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Results -->
+      <section v-if="hasSearched" class="results-section">
+        <div class="results-header">
+          <h2>搜索结果</h2>
+          <span class="results-meta" v-if="results.length">
+            {{ results.length }} 件商品，耗时 {{ tookMs }}ms
+          </span>
+        </div>
+
+        <div v-if="queryDescription" class="query-desc">
+          📝 {{ queryDescription }}
+        </div>
+
+        <div v-if="results.length" class="results-grid">
+          <div
+            v-for="item in results"
+            :key="item.product_id"
+            class="result-card"
+            @click="openUrl(item.url)"
+          >
+            <img
+              :src="item.image_url || 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22/>'
+              "
+              :alt="item.name"
+              class="card-image"
+              @error="handleImageError"
+            >
+            <div class="card-body">
+              <div class="card-name">{{ item.name || '未命名商品' }}</div>
+              <div class="card-footer">
+                <span class="card-price">{{ item.price || '-' }}</span>
+                <span class="card-score">{{ (item.score * 100).toFixed(1) }}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="empty-state">
+          <div class="icon">🔍</div>
+          <p>未找到相似商品</p>
+        </div>
+      </section>
+
+      <!-- Toast -->
+      <div v-if="error" class="toast" @click="error = null">
+        {{ error }}
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue
+
+    createApp({
+      data() {
+        return {
+          apiUrl: 'http://localhost:8000',
+          imageFile: null,
+          imagePreview: null,
+          topK: 20,
+          categoryHint: '',
+          loading: false,
+          results: [],
+          error: null,
+          queryDescription: '',
+          tookMs: 0,
+          isDragging: false,
+          hasSearched: false
+        }
+      },
+
+      methods: {
+        triggerFileInput() {
+          if (!this.imagePreview) {
+            this.$refs.fileInput.click()
+          }
+        },
+
+        handleFileSelect(e) {
+          const file = e.target.files[0]
+          if (file) {
+            this.setImage(file)
+          }
+        },
+
+        handleDrop(e) {
+          this.isDragging = false
+          const file = e.dataTransfer.files[0]
+          if (file && file.type.startsWith('image/')) {
+            this.setImage(file)
+          }
+        },
+
+        setImage(file) {
+          this.imageFile = file
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            this.imagePreview = e.target.result
+          }
+          reader.readAsDataURL(file)
+        },
+
+        clearImage() {
+          this.imageFile = null
+          this.imagePreview = null
+          this.$refs.fileInput.value = ''
+        },
+
+        async search() {
+          if (!this.imageFile) return
+
+          this.loading = true
+          this.error = null
+          this.hasSearched = true
+
+          try {
+            const formData = new FormData()
+            formData.append('image', this.imageFile)
+
+            const params = new URLSearchParams()
+            params.append('top_k', this.topK)
+            if (this.categoryHint) {
+              params.append('category_hint', this.categoryHint)
+            }
+
+            const url = `${this.apiUrl.replace(/\/$/, '')}/api/v1/search/image?${params}`
+            const response = await fetch(url, {
+              method: 'POST',
+              body: formData
+            })
+
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+            }
+
+            const data = await response.json()
+
+            if (data.success) {
+              this.results = data.data.results
+              this.queryDescription = data.data.query_description
+              this.tookMs = data.meta.took_ms
+            } else {
+              throw new Error(data.message || '搜索失败')
+            }
+          } catch (e) {
+            this.error = `请求失败: ${e.message}`
+            this.results = []
+            setTimeout(() => { this.error = null }, 5000)
+          } finally {
+            this.loading = false
+          }
+        },
+
+        openUrl(url) {
+          if (url) {
+            window.open(url, '_blank')
+          }
+        },
+
+        handleImageError(e) {
+          e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23f0f0f0" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="%23ccc" font-size="14">无图片</text></svg>'
+        }
+      }
+    }).mount('#app')
+  </script>
+</body>
+</html>
