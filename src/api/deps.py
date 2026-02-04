@@ -40,12 +40,8 @@ async def init_services() -> None:
     
     # 初始化搜索服务
     search_config = SearchConfig(
-        weight_image=settings.search_weight_image,
-        weight_text_vector=settings.search_weight_text_vector,
-        weight_bm25=settings.search_weight_bm25,
         rrf_k=settings.search_rrf_k,
-        candidate_multiplier=settings.search_candidate_multiplier,
-        category_boost=settings.search_category_boost
+        candidate_multiplier=settings.search_candidate_multiplier
     )
     
     _search_service = HybridSearchService(

@@ -19,6 +19,14 @@ def mock_services():
     mock_text_encoder.encode = AsyncMock(return_value=np.array([0.1] * 2048))
     mock_desc_generator.generate = AsyncMock(return_value="[COLOR] Gray\n[STYLE] Modern")
     
+    # 模拟 hybrid_search 返回结果
+    mock_milvus.hybrid_search.return_value = [
+        {"id": 1, "rank": 1, "product_code": "A", "category": "sofa",
+         "description_ai": "test", "image_url": "http://example.com/1.jpg", "score": 0.95},
+        {"id": 2, "rank": 2, "product_code": "B", "category": "sofa",
+         "description_ai": "test", "image_url": "http://example.com/2.jpg", "score": 0.85},
+    ]
+    
     return {
         "milvus": mock_milvus,
         "image_encoder": mock_image_encoder,
@@ -31,18 +39,6 @@ def mock_services():
 async def test_hybrid_search_service_search(mock_services):
     """测试混合搜索"""
     from src.search.hybrid_search import HybridSearchService
-    
-    # 模拟 Milvus 搜索结果
-    mock_services["milvus"].search_by_vector.return_value = [
-        {"id": 1, "rank": 1, "product_code": "A", "category": "sofa",
-         "description_ai": "test", "image_url": "http://example.com/1.jpg"},
-        {"id": 2, "rank": 2, "product_code": "B", "category": "sofa",
-         "description_ai": "test", "image_url": "http://example.com/2.jpg"},
-    ]
-    mock_services["milvus"].search_by_text.return_value = [
-        {"id": 1, "rank": 1, "product_code": "A", "category": "sofa",
-         "description_ai": "test", "image_url": "http://example.com/1.jpg"},
-    ]
     
     service = HybridSearchService(
         milvus_client=mock_services["milvus"],
@@ -61,24 +57,19 @@ async def test_hybrid_search_service_search(mock_services):
     mock_services["desc_generator"].generate.assert_called_once()
     mock_services["text_encoder"].encode.assert_called_once()
     
+    # 验证调用了 hybrid_search（而不是分开的 search）
+    mock_services["milvus"].hybrid_search.assert_called_once()
+    
     # 验证返回了融合结果
-    assert len(results) > 0
-    assert all("score" in r for r in results)
+    assert len(results) == 2
+    assert results[0]["id"] == 1
+    assert results[0]["score"] == 0.95
 
 
 @pytest.mark.asyncio
-async def test_hybrid_search_respects_top_k(mock_services):
-    """测试 top_k 参数"""
+async def test_hybrid_search_builds_correct_requests(mock_services):
+    """测试构建正确的搜索请求"""
     from src.search.hybrid_search import HybridSearchService
-    
-    # 返回很多结果
-    many_results = [
-        {"id": i, "rank": i, "product_code": f"P{i}", "category": "sofa",
-         "description_ai": "test", "image_url": f"http://example.com/{i}.jpg"}
-        for i in range(1, 51)
-    ]
-    mock_services["milvus"].search_by_vector.return_value = many_results
-    mock_services["milvus"].search_by_text.return_value = many_results[:10]
     
     service = HybridSearchService(
         milvus_client=mock_services["milvus"],
@@ -87,6 +78,20 @@ async def test_hybrid_search_respects_top_k(mock_services):
         description_generator=mock_services["desc_generator"]
     )
     
-    results, _ = await service.search(image_bytes=b'\xff\xd8', top_k=5)
+    await service.search(image_bytes=b'\xff\xd8', top_k=5)
     
-    assert len(results) <= 5
+    # 验证 hybrid_search 被调用时的参数
+    call_kwargs = mock_services["milvus"].hybrid_search.call_args[1]
+    
+    # 应该有 3 个搜索请求
+    assert len(call_kwargs["search_requests"]) == 3
+    
+    # 验证字段名
+    field_names = [req["field_name"] for req in call_kwargs["search_requests"]]
+    assert "image_embedding" in field_names
+    assert "text_embedding" in field_names
+    assert "description_ai" in field_names
+    
+    # 验证 limit 和 rrf_k
+    assert call_kwargs["limit"] == 5
+    assert call_kwargs["rrf_k"] == 60

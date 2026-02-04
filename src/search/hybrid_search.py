@@ -8,32 +8,17 @@ from typing import List, Tuple, Optional
 from src.encoders.image_encoder import ImageEncoder
 from src.encoders.text_encoder import TextEncoder
 from src.generators.description import DescriptionGenerator
-from src.search.fusion import rrf_fusion, FusionConfig
 
 
 @dataclass
 class SearchConfig:
     """搜索配置"""
-    weight_image: float = 0.35
-    weight_text_vector: float = 0.40
-    weight_bm25: float = 0.25
     rrf_k: int = 60
     candidate_multiplier: int = 3
-    category_boost: float = 1.2
-    
-    def to_fusion_config(self) -> FusionConfig:
-        """转换为融合配置"""
-        return FusionConfig(
-            weight_image=self.weight_image,
-            weight_text_vector=self.weight_text_vector,
-            weight_bm25=self.weight_bm25,
-            rrf_k=self.rrf_k,
-            category_boost=self.category_boost
-        )
 
 
 class HybridSearchService:
-    """三路混合搜索服务"""
+    """三路混合搜索服务（使用 Zilliz Cloud 原生 hybrid_search）"""
     
     OUTPUT_FIELDS = ["product_code", "category", "description_ai", "image_url"]
     
@@ -58,12 +43,12 @@ class HybridSearchService:
         category_hint: Optional[str] = None
     ) -> Tuple[List[dict], str]:
         """
-        执行三路混合搜索
+        执行三路混合搜索（使用 Zilliz Cloud 原生 hybrid_search + RRF）
         
         Args:
             image_bytes: 输入图片的二进制数据
             top_k: 返回结果数量
-            category_hint: 可选的品类提示
+            category_hint: 可选的品类提示（暂未使用，可扩展为 filter）
         
         Returns:
             (搜索结果列表, 生成的描述)
@@ -79,53 +64,36 @@ class HybridSearchService:
         # 2. 文本编码（依赖描述生成结果）
         text_emb = await self.text_encoder.encode(description)
         
-        # 3. 并行执行三路搜索
+        # 3. 构建三路搜索请求
         candidate_limit = top_k * self.config.candidate_multiplier
         
-        image_task = self._search_by_image(image_emb, candidate_limit)
-        text_task = self._search_by_text_vector(text_emb, candidate_limit)
-        bm25_task = self._search_by_bm25(description, candidate_limit)
+        search_requests = [
+            {
+                "field_name": "image_embedding",
+                "data": image_emb.tolist(),
+                "search_type": "vector",
+                "limit": candidate_limit
+            },
+            {
+                "field_name": "text_embedding",
+                "data": text_emb.tolist(),
+                "search_type": "vector",
+                "limit": candidate_limit
+            },
+            {
+                "field_name": "description_ai",
+                "data": description,
+                "search_type": "text",
+                "limit": candidate_limit
+            }
+        ]
         
-        image_results, text_results, bm25_results = await asyncio.gather(
-            image_task, text_task, bm25_task
+        # 4. 执行原生 hybrid_search（一次 API 调用，服务端 RRF 融合）
+        results = self.milvus.hybrid_search(
+            search_requests=search_requests,
+            output_fields=self.OUTPUT_FIELDS,
+            limit=top_k,
+            rrf_k=self.config.rrf_k
         )
         
-        # 4. RRF 融合
-        fusion_config = self.config.to_fusion_config()
-        fused_results = rrf_fusion(
-            image_results=image_results,
-            text_results=text_results,
-            bm25_results=bm25_results,
-            config=fusion_config,
-            category_hint=category_hint
-        )
-        
-        # 5. 返回 Top K
-        return fused_results[:top_k], description
-    
-    async def _search_by_image(self, embedding, limit: int) -> List[dict]:
-        """图像向量搜索"""
-        return self.milvus.search_by_vector(
-            field_name="image_embedding",
-            vector=embedding.tolist(),
-            limit=limit,
-            output_fields=self.OUTPUT_FIELDS
-        )
-    
-    async def _search_by_text_vector(self, embedding, limit: int) -> List[dict]:
-        """文本向量搜索"""
-        return self.milvus.search_by_vector(
-            field_name="text_embedding",
-            vector=embedding.tolist(),
-            limit=limit,
-            output_fields=self.OUTPUT_FIELDS
-        )
-    
-    async def _search_by_bm25(self, query_text: str, limit: int) -> List[dict]:
-        """BM25 全文搜索"""
-        return self.milvus.search_by_text(
-            field_name="description_ai",
-            query_text=query_text,
-            limit=limit,
-            output_fields=self.OUTPUT_FIELDS
-        )
+        return results, description

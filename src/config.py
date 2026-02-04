@@ -25,13 +25,9 @@ class Settings(BaseSettings):
     # 阿里云
     aliyun_dashscope_api_key: str
     
-    # 搜索配置
-    search_weight_image: float = 0.35
-    search_weight_text_vector: float = 0.40
-    search_weight_bm25: float = 0.25
+    # 搜索配置（使用 Zilliz Cloud 原生 hybrid_search + RRF）
     search_rrf_k: int = 60
     search_candidate_multiplier: int = 3
-    search_category_boost: float = 1.2
 
 
 @lru_cache
