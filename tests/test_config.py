@@ -36,4 +36,4 @@ def test_settings_has_default_collection_name(monkeypatch):
     from src.config import Settings
     settings = Settings()
     
-    assert settings.zilliz_cloud_collection == "products"
+    assert settings.zilliz_cloud_collection == "ikea_data"
