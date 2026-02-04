@@ -19,12 +19,14 @@ def mock_services():
     mock_text_encoder.encode = AsyncMock(return_value=np.array([0.1] * 2048))
     mock_desc_generator.generate = AsyncMock(return_value="[COLOR] Gray\n[STYLE] Modern")
     
-    # 模拟 hybrid_search 返回结果
+    # 模拟 hybrid_search 返回结果（与 Zilliz Cloud schema 对齐）
     mock_milvus.hybrid_search.return_value = [
-        {"id": 1, "rank": 1, "product_code": "A", "category": "sofa",
-         "description_ai": "test", "image_url": "http://example.com/1.jpg", "score": 0.95},
-        {"id": 2, "rank": 2, "product_code": "B", "category": "sofa",
-         "description_ai": "test", "image_url": "http://example.com/2.jpg", "score": 0.85},
+        {"id": 1, "rank": 1, "sku": "A", "name": "Sofa A", "category": "sofa",
+         "price": "$999", "description": "test", "LLMDescription": "test llm",
+         "url": "http://example.com/a", "imageUrl": "http://example.com/1.jpg", "score": 0.95},
+        {"id": 2, "rank": 2, "sku": "B", "name": "Sofa B", "category": "sofa",
+         "price": "$899", "description": "test", "LLMDescription": "test llm",
+         "url": "http://example.com/b", "imageUrl": "http://example.com/2.jpg", "score": 0.85},
     ]
     
     return {
@@ -86,11 +88,11 @@ async def test_hybrid_search_builds_correct_requests(mock_services):
     # 应该有 3 个搜索请求
     assert len(call_kwargs["search_requests"]) == 3
     
-    # 验证字段名
+    # 验证字段名（与 Zilliz Cloud schema 对齐）
     field_names = [req["field_name"] for req in call_kwargs["search_requests"]]
-    assert "image_embedding" in field_names
-    assert "text_embedding" in field_names
-    assert "description_ai" in field_names
+    assert "imageVector" in field_names
+    assert "vector" in field_names
+    assert "LLMDescription" in field_names
     
     # 验证 limit 和 rrf_k
     assert call_kwargs["limit"] == 5

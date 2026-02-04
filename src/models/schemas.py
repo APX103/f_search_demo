@@ -6,15 +6,18 @@ from pydantic import BaseModel, Field
 
 
 class SearchResult(BaseModel):
-    """搜索结果"""
+    """搜索结果（与 Zilliz Cloud schema 对齐）"""
     product_id: int
-    product_code: str
+    sku: str
+    name: str
     category: str
-    description_ai: str
+    price: str
+    description: str
+    llm_description: str
+    url: str
     image_url: str
     score: float
     rank: int
-    debug_ranks: Optional[Dict[str, int]] = None
 
 
 class SearchRequest(BaseModel):
@@ -43,11 +46,15 @@ class SearchMeta(BaseModel):
 
 
 class ProductInput(BaseModel):
-    """商品输入"""
-    product_code: str
+    """商品输入（用于批量导入）"""
+    sku: str
+    name: str
     category: str
-    image_path: str
-    description_human: Optional[str] = None
+    price: str
+    description: str
+    url: str
+    image_url: str
+    image_path: Optional[str] = None  # 本地图片路径，用于生成向量
 
 
 class ProductResponse(BaseModel):

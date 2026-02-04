@@ -158,19 +158,35 @@ class MilvusClientWrapper:
 
 
 def get_collection_schema(client: MilvusClient):
-    """获取 collection schema"""
+    """
+    获取 collection schema
+    
+    字段说明（与 Zilliz Cloud 现有 schema 对齐）：
+    - vector: 文本向量 (2048维，智谱 Embedding-3)
+    - imageVector: 图像向量 (1024维，阿里云 Multimodal-Embedding)
+    - name: 商品名称
+    - url: 商品页面 URL
+    - imageUrl: 商品图片 URL
+    - price: 价格
+    - description: 人工描述
+    - sku: 商品 SKU
+    - LLMDescription: AI 生成的描述（用于 BM25 搜索）
+    - category: 商品类别
+    """
     schema = client.create_schema(auto_id=True, enable_dynamic_field=False)
     
     schema.add_field("id", DataType.INT64, is_primary=True)
-    schema.add_field("product_code", DataType.VARCHAR, max_length=64)
-    schema.add_field("category", DataType.VARCHAR, max_length=128)
-    schema.add_field("description_human", DataType.VARCHAR, max_length=2048)
-    schema.add_field("description_ai", DataType.VARCHAR, max_length=4096,
+    schema.add_field("sku", DataType.VARCHAR, max_length=64)
+    schema.add_field("name", DataType.VARCHAR, max_length=128)
+    schema.add_field("category", DataType.VARCHAR, max_length=64)
+    schema.add_field("price", DataType.VARCHAR, max_length=64)
+    schema.add_field("description", DataType.VARCHAR, max_length=2048)
+    schema.add_field("LLMDescription", DataType.VARCHAR, max_length=4096,
                      enable_analyzer=True, analyzer_params={"type": "chinese"})
-    schema.add_field("image_embedding", DataType.FLOAT_VECTOR, dim=1024)
-    schema.add_field("text_embedding", DataType.FLOAT_VECTOR, dim=2048)
-    schema.add_field("image_url", DataType.VARCHAR, max_length=512)
-    schema.add_field("created_at", DataType.INT64)
+    schema.add_field("imageVector", DataType.FLOAT_VECTOR, dim=1024)
+    schema.add_field("vector", DataType.FLOAT_VECTOR, dim=2048)
+    schema.add_field("url", DataType.VARCHAR, max_length=512)
+    schema.add_field("imageUrl", DataType.VARCHAR, max_length=512)
     
     return schema
 
@@ -180,21 +196,21 @@ def get_index_params(client: MilvusClient):
     index_params = client.prepare_index_params()
     
     index_params.add_index(
-        field_name="image_embedding",
+        field_name="imageVector",
         index_type="HNSW",
         metric_type="COSINE",
         params={"M": 16, "efConstruction": 256}
     )
     index_params.add_index(
-        field_name="text_embedding",
+        field_name="vector",
         index_type="HNSW",
         metric_type="COSINE",
         params={"M": 16, "efConstruction": 256}
     )
     index_params.add_index(
-        field_name="description_ai",
+        field_name="LLMDescription",
         index_type="AUTOINDEX",
-        index_name="description_ai_bm25"
+        index_name="LLMDescription_bm25"
     )
     
     return index_params

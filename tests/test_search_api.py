@@ -15,12 +15,16 @@ def mock_search_service():
         [
             {
                 "id": 1,
-                "product_code": "SF-001",
+                "sku": "SF-001",
+                "name": "Modern Sofa",
                 "category": "sofa",
-                "description_ai": "[COLOR] Gray",
-                "image_url": "http://example.com/1.jpg",
+                "price": "$999",
+                "description": "A comfortable sofa",
+                "LLMDescription": "[COLOR] Gray",
+                "url": "http://example.com/product/SF-001",
+                "imageUrl": "http://example.com/1.jpg",
                 "score": 0.85,
-                "final_rank": 1
+                "rank": 1
             }
         ],
         "[COLOR] Gray\n[STYLE] Modern"

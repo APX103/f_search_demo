@@ -26,10 +26,14 @@ from src.generators.description import ZhipuDescriptionGenerator
 @dataclass
 class ProductInput:
     """商品输入"""
-    product_code: str
+    sku: str
+    name: str
     category: str
-    image_path: str
-    description_human: Optional[str] = None
+    price: str
+    description: str
+    url: str
+    image_url: str
+    image_path: Optional[str] = None  # 本地图片路径
 
 
 class BatchImporter:
@@ -56,10 +60,14 @@ class BatchImporter:
             reader = csv.DictReader(f)
             for row in reader:
                 products.append(ProductInput(
-                    product_code=row['product_code'],
+                    sku=row['sku'],
+                    name=row['name'],
                     category=row['category'],
-                    image_path=row['image_path'],
-                    description_human=row.get('description_human', '')
+                    price=row.get('price', ''),
+                    description=row.get('description', ''),
+                    url=row.get('url', ''),
+                    image_url=row.get('image_url', row.get('imageUrl', '')),
+                    image_path=row.get('image_path', '')
                 ))
         await self._import_products(products)
     
@@ -70,17 +78,21 @@ class BatchImporter:
         
         products = [
             ProductInput(
-                product_code=p['product_code'],
+                sku=p['sku'],
+                name=p['name'],
                 category=p['category'],
-                image_path=p['image_path'],
-                description_human=p.get('description_human', '')
+                price=p.get('price', ''),
+                description=p.get('description', ''),
+                url=p.get('url', ''),
+                image_url=p.get('image_url', p.get('imageUrl', '')),
+                image_path=p.get('image_path', '')
             )
             for p in data['products']
         ]
         await self._import_products(products)
     
     async def import_from_directory(self, data_dir: str):
-        """从目录结构导入"""
+        """从目录结构导入（目录名为 category，文件名为 sku）"""
         products = []
         data_path = Path(data_dir)
         
@@ -92,10 +104,14 @@ class BatchImporter:
             for ext in ['*.jpg', '*.jpeg', '*.png']:
                 for image_file in category_dir.glob(ext):
                     products.append(ProductInput(
-                        product_code=image_file.stem,
+                        sku=image_file.stem,
+                        name=image_file.stem,
                         category=category,
-                        image_path=str(image_file),
-                        description_human=''
+                        price='',
+                        description='',
+                        url='',
+                        image_url='',
+                        image_path=str(image_file)
                     ))
         
         await self._import_products(products)
@@ -129,28 +145,41 @@ class BatchImporter:
     
     async def _process_single(self, product: ProductInput) -> Dict:
         """处理单个商品"""
-        # 读取图片
-        with open(product.image_path, 'rb') as f:
-            image_bytes = f.read()
+        # 读取图片（如果有本地路径）
+        image_bytes = None
+        if product.image_path:
+            with open(product.image_path, 'rb') as f:
+                image_bytes = f.read()
+        elif product.image_url:
+            # 从 URL 下载图片
+            import httpx
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(product.image_url)
+                image_bytes = resp.content
         
-        # 并行生成描述和图像 embedding
+        if not image_bytes:
+            raise ValueError(f"No image available for {product.sku}")
+        
+        # 并行生成 LLM 描述和图像 embedding
         desc_task = self.desc_gen.generate(image_bytes)
         img_emb_task = self.img_encoder.encode(image_bytes)
         
-        description_ai, image_embedding = await asyncio.gather(desc_task, img_emb_task)
+        llm_description, image_vector = await asyncio.gather(desc_task, img_emb_task)
         
         # 生成文本 embedding
-        text_embedding = await self.text_encoder.encode(description_ai)
+        text_vector = await self.text_encoder.encode(llm_description)
         
         return {
-            "product_code": product.product_code,
+            "sku": product.sku,
+            "name": product.name,
             "category": product.category,
-            "description_human": product.description_human or "",
-            "description_ai": description_ai,
-            "image_embedding": image_embedding.tolist(),
-            "text_embedding": text_embedding.tolist(),
-            "image_url": product.image_path,
-            "created_at": int(time.time())
+            "price": product.price,
+            "description": product.description,
+            "LLMDescription": llm_description,
+            "imageVector": image_vector.tolist(),
+            "vector": text_vector.tolist(),
+            "url": product.url,
+            "imageUrl": product.image_url or product.image_path
         }
 
 

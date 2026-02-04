@@ -11,16 +11,21 @@ def test_search_result_model():
     
     result = SearchResult(
         product_id=123,
-        product_code="SF-001",
+        sku="SF-001",
+        name="Modern Sofa",
         category="sofa",
-        description_ai="[COLOR] Dark gray...",
+        price="$999",
+        description="A comfortable sofa",
+        llm_description="[COLOR] Dark gray...",
+        url="https://example.com/product/SF-001",
         image_url="https://example.com/image.jpg",
         score=0.85,
         rank=1
     )
     
     assert result.product_id == 123
-    assert result.product_code == "SF-001"
+    assert result.sku == "SF-001"
+    assert result.name == "Modern Sofa"
     assert result.score == 0.85
 
 
@@ -49,10 +54,15 @@ def test_product_input_model():
     from src.models.schemas import ProductInput
     
     product = ProductInput(
-        product_code="TB-001",
+        sku="TB-001",
+        name="Dining Table",
         category="table",
-        image_path="/data/images/TB-001.jpg"
+        price="$599",
+        description="Oak dining table",
+        url="https://example.com/product/TB-001",
+        image_url="https://example.com/images/TB-001.jpg"
     )
     
-    assert product.product_code == "TB-001"
-    assert product.description_human is None
+    assert product.sku == "TB-001"
+    assert product.name == "Dining Table"
+    assert product.image_path is None

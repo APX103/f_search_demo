@@ -20,7 +20,8 @@ class SearchConfig:
 class HybridSearchService:
     """三路混合搜索服务（使用 Zilliz Cloud 原生 hybrid_search）"""
     
-    OUTPUT_FIELDS = ["product_code", "category", "description_ai", "image_url"]
+    # 输出字段（与 Zilliz Cloud schema 对齐）
+    OUTPUT_FIELDS = ["sku", "name", "category", "price", "description", "LLMDescription", "url", "imageUrl"]
     
     def __init__(
         self,
@@ -64,24 +65,24 @@ class HybridSearchService:
         # 2. 文本编码（依赖描述生成结果）
         text_emb = await self.text_encoder.encode(description)
         
-        # 3. 构建三路搜索请求
+        # 3. 构建三路搜索请求（字段名与 Zilliz Cloud schema 对齐）
         candidate_limit = top_k * self.config.candidate_multiplier
         
         search_requests = [
             {
-                "field_name": "image_embedding",
+                "field_name": "imageVector",  # 图像向量 (1024维)
                 "data": image_emb.tolist(),
                 "search_type": "vector",
                 "limit": candidate_limit
             },
             {
-                "field_name": "text_embedding",
+                "field_name": "vector",  # 文本向量 (2048维)
                 "data": text_emb.tolist(),
                 "search_type": "vector",
                 "limit": candidate_limit
             },
             {
-                "field_name": "description_ai",
+                "field_name": "LLMDescription",  # BM25 全文搜索
                 "data": description,
                 "search_type": "text",
                 "limit": candidate_limit
