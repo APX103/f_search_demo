@@ -43,6 +43,8 @@ async def search_by_image(
             category_hint=category_hint
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
     
     # 构建响应

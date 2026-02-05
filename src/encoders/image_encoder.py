@@ -4,8 +4,10 @@
 from abc import ABC, abstractmethod
 from typing import Protocol
 import base64
+import io
 import numpy as np
 import httpx
+from PIL import Image
 
 
 class ImageEncoder(Protocol):
@@ -38,6 +40,37 @@ class AliyunImageEncoder:
             self._client = httpx.AsyncClient(timeout=self.timeout)
         return self._client
     
+    def _compress_image(self, image_bytes: bytes, max_size_kb: int = 2800) -> bytes:
+        """压缩图片到指定大小以下"""
+        # 如果已经小于限制，直接返回
+        if len(image_bytes) <= max_size_kb * 1024:
+            return image_bytes
+        
+        img = Image.open(io.BytesIO(image_bytes))
+        
+        # 转换为 RGB（去除 alpha 通道）
+        if img.mode in ('RGBA', 'P'):
+            img = img.convert('RGB')
+        
+        # 逐步降低质量直到满足大小要求
+        for quality in [85, 70, 55, 40, 25]:
+            buffer = io.BytesIO()
+            img.save(buffer, format='JPEG', quality=quality, optimize=True)
+            if buffer.tell() <= max_size_kb * 1024:
+                return buffer.getvalue()
+        
+        # 如果质量降低还不够，缩小尺寸
+        width, height = img.size
+        for scale in [0.75, 0.5, 0.35, 0.25]:
+            new_size = (int(width * scale), int(height * scale))
+            resized = img.resize(new_size, Image.Resampling.LANCZOS)
+            buffer = io.BytesIO()
+            resized.save(buffer, format='JPEG', quality=50, optimize=True)
+            if buffer.tell() <= max_size_kb * 1024:
+                return buffer.getvalue()
+        
+        return buffer.getvalue()
+    
     async def encode(self, image_bytes: bytes) -> np.ndarray:
         """
         将图片编码为 1024 维向量
@@ -48,6 +81,8 @@ class AliyunImageEncoder:
         Returns:
             1024 维 numpy 数组
         """
+        # 压缩图片（阿里云限制 3MB）
+        image_bytes = self._compress_image(image_bytes)
         image_b64 = base64.b64encode(image_bytes).decode()
         
         client = await self._get_client()
@@ -67,7 +102,9 @@ class AliyunImageEncoder:
             }
         )
         
-        response.raise_for_status()
+        if response.status_code != 200:
+            print(f"[AliyunImageEncoder] Error {response.status_code}: {response.text}")
+            response.raise_for_status()
         result = response.json()
         
         embedding = result["output"]["embeddings"][0]["embedding"]

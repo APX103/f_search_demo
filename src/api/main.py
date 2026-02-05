@@ -15,9 +15,11 @@ async def lifespan(app: FastAPI):
     # 启动时初始化服务
     try:
         await init_services()
-    except Exception:
-        # 允许在没有完整配置时启动（用于测试）
-        pass
+        print("✓ Services initialized successfully")
+    except Exception as e:
+        import traceback
+        print(f"✗ Failed to initialize services: {e}")
+        traceback.print_exc()
     yield
     # 关闭时清理资源
     await cleanup_services()
