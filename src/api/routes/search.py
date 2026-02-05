@@ -54,16 +54,16 @@ async def search_by_image(
             query_description=query_description,
             results=[
                 SearchResult(
-                    product_id=r["id"],
+                    product_id=r.get("primary_key") or r.get("id", 0),
                     sku=r.get("sku", ""),
                     name=r.get("name", ""),
                     category=r.get("category", ""),
                     price=r.get("price", ""),
-                    description=r.get("description", ""),
+                    description=r.get("discription", "") or r.get("description", ""),
                     llm_description=r.get("LLMDescription", ""),
                     url=r.get("url", ""),
                     image_url=r.get("imageUrl", ""),
-                    score=r["score"],
+                    score=r.get("score", 0),
                     rank=r.get("rank", 0)
                 )
                 for r in results

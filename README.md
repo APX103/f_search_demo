@@ -136,7 +136,7 @@ RRF_score(d) = Σ  ────────────
 |------|---------|------|
 | **前端** | Vue 3 (CDN) | 单文件 HTML，零构建 |
 | **后端** | FastAPI | 异步 API 框架 |
-| **向量库** | Zilliz Cloud | 托管 Milvus，原生 hybrid_search |
+| **向量库** | Zilliz Cloud REST API | 零 SDK 依赖，直接调 HTTP |
 | **图像编码** | 阿里云 Multimodal-Embedding | 1024 维视觉向量 |
 | **文本编码** | 智谱 Embedding-3 | 2048 维语义向量 |
 | **描述生成** | 智谱 GLM-4V-Flash | VLM 图像理解 |
@@ -163,7 +163,7 @@ furniture_search_demo/
 │   │   ├── hybrid_search.py   # 混合搜索服务
 │   │   └── fusion.py          # RRF 融合算法
 │   ├── storage/
-│   │   └── milvus_client.py   # Zilliz Cloud 客户端
+│   │   └── zilliz_client.py   # Zilliz Cloud REST API 客户端
 │   ├── models/
 │   │   └── schemas.py         # Pydantic 模型
 │   └── config.py              # 配置管理

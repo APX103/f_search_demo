@@ -7,8 +7,7 @@ python-multipart>=0.0.6
 httpx>=0.26.0
 aiofiles>=23.2.1
 
-# Vector Database
-pymilvus>=2.4.0
+# Zilliz Cloud REST API (no pymilvus needed)
 
 # Data Processing
 numpy>=1.26.0

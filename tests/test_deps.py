@@ -25,10 +25,10 @@ async def test_init_services_creates_search_service(monkeypatch):
     monkeypatch.setenv("ZHIPU_API_KEY", "zhipu_key")
     monkeypatch.setenv("ALIYUN_DASHSCOPE_API_KEY", "aliyun_key")
     
-    with patch("src.api.deps.MilvusClientWrapper") as mock_milvus:
-        from src.api.deps import init_services, get_search_service, _search_service
+    with patch("src.api.deps.ZillizClient") as mock_zilliz:
+        from src.api.deps import init_services, get_search_service
         
         await init_services()
         
-        # 验证 Milvus 客户端被创建
-        mock_milvus.assert_called_once()
+        # 验证 Zilliz 客户端被创建
+        mock_zilliz.assert_called_once()

@@ -4,7 +4,7 @@
 from typing import Optional
 
 from src.config import get_settings, Settings
-from src.storage.milvus_client import MilvusClientWrapper
+from src.storage.zilliz_client import ZillizClient
 from src.encoders.image_encoder import AliyunImageEncoder
 from src.encoders.text_encoder import ZhipuTextEncoder
 from src.generators.description import ZhipuDescriptionGenerator
@@ -13,7 +13,7 @@ from src.search.hybrid_search import HybridSearchService, SearchConfig
 
 # 全局服务实例
 _search_service: Optional[HybridSearchService] = None
-_milvus_client: Optional[MilvusClientWrapper] = None
+_zilliz_client: Optional[ZillizClient] = None
 _image_encoder: Optional[AliyunImageEncoder] = None
 _text_encoder: Optional[ZhipuTextEncoder] = None
 _desc_generator: Optional[ZhipuDescriptionGenerator] = None
@@ -21,14 +21,14 @@ _desc_generator: Optional[ZhipuDescriptionGenerator] = None
 
 async def init_services() -> None:
     """初始化所有服务"""
-    global _search_service, _milvus_client
+    global _search_service, _zilliz_client
     global _image_encoder, _text_encoder, _desc_generator
     
     settings = get_settings()
     
-    # 初始化 Milvus 客户端
-    _milvus_client = MilvusClientWrapper(
-        uri=settings.zilliz_cloud_uri,
+    # 初始化 Zilliz 客户端
+    _zilliz_client = ZillizClient(
+        endpoint=settings.zilliz_cloud_uri,
         token=settings.zilliz_cloud_token,
         collection_name=settings.zilliz_cloud_collection
     )
@@ -45,7 +45,7 @@ async def init_services() -> None:
     )
     
     _search_service = HybridSearchService(
-        milvus_client=_milvus_client,
+        zilliz_client=_zilliz_client,
         image_encoder=_image_encoder,
         text_encoder=_text_encoder,
         description_generator=_desc_generator,
@@ -55,10 +55,8 @@ async def init_services() -> None:
 
 async def cleanup_services() -> None:
     """清理所有服务资源"""
-    global _milvus_client, _image_encoder, _text_encoder, _desc_generator
+    global _image_encoder, _text_encoder, _desc_generator
     
-    if _milvus_client:
-        _milvus_client.close()
     if _image_encoder:
         await _image_encoder.close()
     if _text_encoder:
@@ -74,8 +72,8 @@ def get_search_service() -> HybridSearchService:
     return _search_service
 
 
-def get_milvus_client() -> MilvusClientWrapper:
-    """获取 Milvus 客户端（FastAPI 依赖）"""
-    if _milvus_client is None:
+def get_zilliz_client() -> ZillizClient:
+    """获取 Zilliz 客户端（FastAPI 依赖）"""
+    if _zilliz_client is None:
         raise RuntimeError("Services not initialized. Call init_services() first.")
-    return _milvus_client
+    return _zilliz_client

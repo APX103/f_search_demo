@@ -3,13 +3,13 @@
 
 import pytest
 import numpy as np
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock, AsyncMock
 
 
 @pytest.fixture
 def mock_services():
     """创建模拟服务"""
-    mock_milvus = MagicMock()
+    mock_zilliz = MagicMock()
     mock_image_encoder = MagicMock()
     mock_text_encoder = MagicMock()
     mock_desc_generator = MagicMock()
@@ -20,17 +20,17 @@ def mock_services():
     mock_desc_generator.generate = AsyncMock(return_value="[COLOR] Gray\n[STYLE] Modern")
     
     # 模拟 hybrid_search 返回结果（与 Zilliz Cloud schema 对齐）
-    mock_milvus.hybrid_search.return_value = [
+    mock_zilliz.hybrid_search = AsyncMock(return_value=[
         {"id": 1, "rank": 1, "sku": "A", "name": "Sofa A", "category": "sofa",
          "price": "$999", "description": "test", "LLMDescription": "test llm",
          "url": "http://example.com/a", "imageUrl": "http://example.com/1.jpg", "score": 0.95},
         {"id": 2, "rank": 2, "sku": "B", "name": "Sofa B", "category": "sofa",
          "price": "$899", "description": "test", "LLMDescription": "test llm",
          "url": "http://example.com/b", "imageUrl": "http://example.com/2.jpg", "score": 0.85},
-    ]
+    ])
     
     return {
-        "milvus": mock_milvus,
+        "zilliz": mock_zilliz,
         "image_encoder": mock_image_encoder,
         "text_encoder": mock_text_encoder,
         "desc_generator": mock_desc_generator
@@ -43,7 +43,7 @@ async def test_hybrid_search_service_search(mock_services):
     from src.search.hybrid_search import HybridSearchService
     
     service = HybridSearchService(
-        milvus_client=mock_services["milvus"],
+        zilliz_client=mock_services["zilliz"],
         image_encoder=mock_services["image_encoder"],
         text_encoder=mock_services["text_encoder"],
         description_generator=mock_services["desc_generator"]
@@ -59,8 +59,8 @@ async def test_hybrid_search_service_search(mock_services):
     mock_services["desc_generator"].generate.assert_called_once()
     mock_services["text_encoder"].encode.assert_called_once()
     
-    # 验证调用了 hybrid_search（而不是分开的 search）
-    mock_services["milvus"].hybrid_search.assert_called_once()
+    # 验证调用了 hybrid_search
+    mock_services["zilliz"].hybrid_search.assert_called_once()
     
     # 验证返回了融合结果
     assert len(results) == 2
@@ -74,7 +74,7 @@ async def test_hybrid_search_builds_correct_requests(mock_services):
     from src.search.hybrid_search import HybridSearchService
     
     service = HybridSearchService(
-        milvus_client=mock_services["milvus"],
+        zilliz_client=mock_services["zilliz"],
         image_encoder=mock_services["image_encoder"],
         text_encoder=mock_services["text_encoder"],
         description_generator=mock_services["desc_generator"]
@@ -83,16 +83,15 @@ async def test_hybrid_search_builds_correct_requests(mock_services):
     await service.search(image_bytes=b'\xff\xd8', top_k=5)
     
     # 验证 hybrid_search 被调用时的参数
-    call_kwargs = mock_services["milvus"].hybrid_search.call_args[1]
+    call_kwargs = mock_services["zilliz"].hybrid_search.call_args[1]
     
-    # 应该有 3 个搜索请求
-    assert len(call_kwargs["search_requests"]) == 3
+    # 应该有 2 个搜索请求（文本向量 + 图像向量）
+    assert len(call_kwargs["vector_searches"]) == 2
     
     # 验证字段名（与 Zilliz Cloud schema 对齐）
-    field_names = [req["field_name"] for req in call_kwargs["search_requests"]]
+    field_names = [req["anns_field"] for req in call_kwargs["vector_searches"]]
     assert "imageVector" in field_names
     assert "vector" in field_names
-    assert "LLMDescription" in field_names
     
     # 验证 limit 和 rrf_k
     assert call_kwargs["limit"] == 5
