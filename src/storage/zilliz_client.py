@@ -77,7 +77,11 @@ class ZillizClient:
         if result.get("code") != 0:
             raise Exception(f"Zilliz API error: {result.get('message', 'Unknown error')}")
         
-        return self._parse_results(result.get("data", []))
+        data = result.get("data", [])
+        if len(data) > limit:
+            data = data[:limit]
+        
+        return self._parse_results(data)
     
     async def search(
         self,
