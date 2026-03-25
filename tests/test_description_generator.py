@@ -64,3 +64,41 @@ async def test_generator_uses_correct_model():
         
         call_kwargs = mock_post.call_args[1]
         assert call_kwargs["json"]["model"] == "glm-4v-flash"
+
+
+@pytest.mark.asyncio
+async def test_description_generator_caches_same_image():
+    """测试相同图片命中缓存"""
+    from src.generators.description import ZhipuDescriptionGenerator
+    
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "choices": [
+            {"message": {"content": "[COLOR] Dark gray / 深灰色\n[STYLE] Modern / 现代简约"}}
+        ]
+    }
+    
+    call_count = 0
+    
+    async def mock_post(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        return mock_response
+    
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock, side_effect=mock_post):
+        generator = ZhipuDescriptionGenerator(api_key="test_key", cache_size=32)
+        
+        try:
+            image_bytes = b'\xff\xd8\xff\xe0\x00\x10JFIF'
+            
+            result1 = await generator.generate(image_bytes)
+            result2 = await generator.generate(image_bytes)
+            result3 = await generator.generate(b'\x00\x00\x00\x00')  # different image
+            
+            assert result1 == result2
+            assert call_count == 2  # once for unique image, once for different image
+            
+            generator.clear_cache()
+            assert len(generator._cache) == 0
+        finally:
+            await generator.close()

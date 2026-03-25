@@ -1,6 +1,14 @@
 # src/api/main.py
 """FastAPI 应用入口"""
 
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(name)s %(levelname)s %(message)s"
+)
+logger = logging.getLogger(__name__)
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,11 +23,9 @@ async def lifespan(app: FastAPI):
     # 启动时初始化服务
     try:
         await init_services()
-        print("✓ Services initialized successfully")
+        logger.info("Services initialized successfully")
     except Exception as e:
-        import traceback
-        print(f"✗ Failed to initialize services: {e}")
-        traceback.print_exc()
+        logger.error("Failed to initialize services", exc_info=True)
     yield
     # 关闭时清理资源
     await cleanup_services()

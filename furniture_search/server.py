@@ -3,8 +3,12 @@
 """
 
 import base64
+import logging
 import time
 from typing import Optional
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -140,8 +144,7 @@ async def search_by_image(request: ImageSearchRequest):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("Search failed")
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 

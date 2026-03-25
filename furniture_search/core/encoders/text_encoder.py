@@ -23,7 +23,7 @@ class ZhipuTextEncoder:
         self,
         api_key: str,
         model: str = "embedding-3",
-        timeout: float = 30.0
+        timeout: float = 10.0
     ):
         self.api_key = api_key
         self.model = model

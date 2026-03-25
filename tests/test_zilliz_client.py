@@ -41,12 +41,11 @@ async def test_zilliz_client_hybrid_search():
     }
     mock_response.raise_for_status = MagicMock()
     
-    with patch("httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(return_value=mock_response)
-        mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client_cls.return_value.__aexit__ = AsyncMock()
-        
+    mock_http_client = AsyncMock()
+    mock_http_client.post = AsyncMock(return_value=mock_response)
+    client._client = mock_http_client  # 注入共享客户端实例
+    
+    try:
         results = await client.hybrid_search(
             vector_searches=[
                 {"data": [0.1] * 2048, "anns_field": "vector", "limit": 10},
@@ -57,14 +56,16 @@ async def test_zilliz_client_hybrid_search():
         )
         
         # 验证 API 调用
-        mock_client.post.assert_called_once()
-        call_args = mock_client.post.call_args
+        mock_http_client.post.assert_called_once()
+        call_args = mock_http_client.post.call_args
         assert "hybrid_search" in call_args[0][0]
         
         # 验证结果
         assert len(results) == 2
         assert results[0]["id"] == 1
         assert results[0]["score"] == 0.95
+    finally:
+        client._client = None
 
 
 @pytest.mark.asyncio
@@ -85,12 +86,11 @@ async def test_zilliz_client_search():
     }
     mock_response.raise_for_status = MagicMock()
     
-    with patch("httpx.AsyncClient") as mock_client_cls:
-        mock_client = AsyncMock()
-        mock_client.post = AsyncMock(return_value=mock_response)
-        mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client_cls.return_value.__aexit__ = AsyncMock()
-        
+    mock_http_client = AsyncMock()
+    mock_http_client.post = AsyncMock(return_value=mock_response)
+    client._client = mock_http_client  # 注入共享客户端实例
+    
+    try:
         results = await client.search(
             vector=[0.1] * 2048,
             anns_field="vector",
@@ -99,3 +99,47 @@ async def test_zilliz_client_search():
         
         assert len(results) == 1
         assert results[0]["id"] == 1
+    finally:
+        client._client = None
+
+
+@pytest.mark.asyncio
+async def test_zilliz_client_search_by_text():
+    """测试 BM25 全文搜索"""
+    from src.storage.zilliz_client import ZillizClient
+    
+    client = ZillizClient(
+        endpoint="https://test.cloud.zilliz.com",
+        token="test_token",
+        collection_name="products"
+    )
+    
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "code": 0,
+        "data": [
+            {"id": 1, "distance": 3.2, "name": "Sofa A", "category": "sofa"},
+            {"id": 3, "distance": 1.5, "name": "Table B", "category": "table"},
+        ]
+    }
+    mock_response.raise_for_status = MagicMock()
+    
+    mock_http_client = AsyncMock()
+    mock_http_client.post = AsyncMock(return_value=mock_response)
+    client._client = mock_http_client
+    
+    try:
+        results = await client.search_by_text(
+            query_text="modern gray sofa",
+            limit=10
+        )
+        
+        mock_http_client.post.assert_called_once()
+        call_kwargs = mock_http_client.post.call_args[1]
+        assert call_kwargs["json"]["searchParams"]["metricType"] == "BM25"
+        assert call_kwargs["json"]["data"] == ["modern gray sofa"]
+        
+        assert len(results) == 2
+        assert results[0]["id"] == 1
+    finally:
+        client._client = None

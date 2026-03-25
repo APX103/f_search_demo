@@ -54,6 +54,7 @@ class FurnitureSearchClient:
         self.config = config or SearchConfig()
         self._initialized = False
         self._service: Optional[HybridSearchService] = None
+        self._zilliz_client: Optional[ZillizClient] = None
         self._encoders: List = []
 
         # 存储配置
@@ -74,6 +75,7 @@ class FurnitureSearchClient:
             token=self.zilliz_token,
             collection_name=self.collection_name
         )
+        self._zilliz_client = zilliz_client
 
         # 初始化编码器
         image_encoder = AliyunImageEncoder(api_key=self.aliyun_api_key)
@@ -125,7 +127,7 @@ class FurnitureSearchClient:
                 name=r.get("name", ""),
                 category=r.get("category", ""),
                 price=r.get("price", ""),
-                description=r.get("discription", "") or r.get("description", ""),
+                description=r.get("description", ""),
                 llm_description=r.get("LLMDescription", ""),
                 url=r.get("url", ""),
                 image_url=r.get("imageUrl", ""),
@@ -137,6 +139,8 @@ class FurnitureSearchClient:
 
     async def close(self):
         """关闭客户端，释放资源"""
+        if self._zilliz_client:
+            await self._zilliz_client.close()
         for encoder in self._encoders:
             if hasattr(encoder, 'close'):
                 await encoder.close()

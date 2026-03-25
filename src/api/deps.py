@@ -40,8 +40,12 @@ async def init_services() -> None:
     
     # 初始化搜索服务
     search_config = SearchConfig(
+        weight_image=settings.search_weight_image,
+        weight_text_vector=settings.search_weight_text_vector,
+        weight_bm25=settings.search_weight_bm25,
         rrf_k=settings.search_rrf_k,
-        candidate_multiplier=settings.search_candidate_multiplier
+        candidate_multiplier=settings.search_candidate_multiplier,
+        category_boost=settings.search_category_boost
     )
     
     _search_service = HybridSearchService(
@@ -55,8 +59,10 @@ async def init_services() -> None:
 
 async def cleanup_services() -> None:
     """清理所有服务资源"""
-    global _image_encoder, _text_encoder, _desc_generator
+    global _image_encoder, _text_encoder, _desc_generator, _zilliz_client
     
+    if _zilliz_client:
+        await _zilliz_client.close()
     if _image_encoder:
         await _image_encoder.close()
     if _text_encoder:

@@ -1,6 +1,7 @@
 # src/api/routes/search.py
 """搜索路由"""
 
+import logging
 import time
 from typing import Optional
 
@@ -9,6 +10,10 @@ from fastapi import APIRouter, UploadFile, File, Query, Depends, HTTPException
 from src.api.deps import get_search_service
 from src.search.hybrid_search import HybridSearchService
 from src.models.schemas import SearchResponse, SearchData, SearchMeta, SearchResult
+
+logger = logging.getLogger(__name__)
+
+MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
 
 
 router = APIRouter()
@@ -35,6 +40,9 @@ async def search_by_image(
     if not image_bytes:
         raise HTTPException(status_code=400, detail="Empty image file")
     
+    if len(image_bytes) > MAX_IMAGE_SIZE:
+        raise HTTPException(status_code=413, detail=f"Image too large. Maximum size is {MAX_IMAGE_SIZE // (1024*1024)}MB.")
+    
     # 执行搜索
     try:
         results, query_description = await search_service.search(
@@ -43,8 +51,7 @@ async def search_by_image(
             category_hint=category_hint
         )
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("Search failed")
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
     
     # 构建响应

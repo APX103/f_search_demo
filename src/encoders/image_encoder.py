@@ -7,6 +7,7 @@ import base64
 import io
 import numpy as np
 import httpx
+import asyncio
 from PIL import Image
 
 
@@ -27,7 +28,7 @@ class AliyunImageEncoder:
         self,
         api_key: str,
         model: str = "multimodal-embedding-v1",
-        timeout: float = 30.0
+        timeout: float = 15.0
     ):
         self.api_key = api_key
         self.model = model
@@ -82,7 +83,7 @@ class AliyunImageEncoder:
             1024 维 numpy 数组
         """
         # 压缩图片（阿里云限制 3MB）
-        image_bytes = self._compress_image(image_bytes)
+        image_bytes = await asyncio.to_thread(self._compress_image, image_bytes)
         image_b64 = base64.b64encode(image_bytes).decode()
         
         client = await self._get_client()

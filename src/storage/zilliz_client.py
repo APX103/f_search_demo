@@ -23,6 +23,18 @@ class ZillizClient:
             "Accept": "application/json",
             "Content-Type": "application/json"
         }
+        self._client: httpx.AsyncClient | None = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=30.0)
+        return self._client
+
+    async def close(self) -> None:
+        """Close HTTP client"""
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
     
     async def hybrid_search(
         self,
@@ -69,10 +81,10 @@ class ZillizClient:
         
         url = f"{self.endpoint}/v2/vectordb/entities/hybrid_search"
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(url, headers=self.headers, json=payload)
-            response.raise_for_status()
-            result = response.json()
+        client = await self._get_client()
+        response = await client.post(url, headers=self.headers, json=payload)
+        response.raise_for_status()
+        result = response.json()
         
         if result.get("code") != 0:
             raise Exception(f"Zilliz API error: {result.get('message', 'Unknown error')}")
@@ -112,10 +124,38 @@ class ZillizClient:
         
         url = f"{self.endpoint}/v2/vectordb/entities/search"
         
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(url, headers=self.headers, json=payload)
-            response.raise_for_status()
-            result = response.json()
+        client = await self._get_client()
+        response = await client.post(url, headers=self.headers, json=payload)
+        response.raise_for_status()
+        result = response.json()
+        
+        if result.get("code") != 0:
+            raise Exception(f"Zilliz API error: {result.get('message', 'Unknown error')}")
+        
+        return self._parse_results(result.get("data", []))
+    
+    async def search_by_text(
+        self,
+        query_text: str,
+        anns_field: str = "LLMDescription",
+        limit: int = 20,
+        output_fields: Optional[List[str]] = None
+    ) -> List[Dict]:
+        """BM25 全文搜索"""
+        payload = {
+            "collectionName": self.collection_name,
+            "data": [query_text],
+            "annsField": anns_field,
+            "limit": limit,
+            "searchParams": {"metricType": "BM25"},
+            "outputFields": output_fields or ["*"]
+        }
+        
+        url = f"{self.endpoint}/v2/vectordb/entities/search"
+        client = await self._get_client()
+        response = await client.post(url, headers=self.headers, json=payload)
+        response.raise_for_status()
+        result = response.json()
         
         if result.get("code") != 0:
             raise Exception(f"Zilliz API error: {result.get('message', 'Unknown error')}")
@@ -159,9 +199,11 @@ class ZillizClient:
                 "rank": rank,
                 "score": item.get("distance", 0),
             }
-            # 添加其他字段
+            # 添加其他字段（normalize known DB typo）
             for key, value in item.items():
                 if key not in ("id", "distance", "primary_key"):
+                    if key == "discription":
+                        key = "description"
                     result[key] = value
             results.append(result)
         return results

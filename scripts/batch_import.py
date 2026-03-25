@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 from tqdm import tqdm
 
-from src.storage.milvus_client import MilvusClientWrapper
+from src.storage.zilliz_client import ZillizClient
 from src.encoders.image_encoder import AliyunImageEncoder
 from src.encoders.text_encoder import ZhipuTextEncoder
 from src.generators.description import ZhipuDescriptionGenerator
@@ -41,7 +41,7 @@ class BatchImporter:
     
     def __init__(
         self,
-        milvus_client: MilvusClientWrapper,
+        milvus_client: ZillizClient,
         image_encoder: AliyunImageEncoder,
         text_encoder: ZhipuTextEncoder,
         desc_generator: ZhipuDescriptionGenerator,
@@ -125,7 +125,7 @@ class BatchImporter:
             records = await self._process_batch(batch)
             
             if records:
-                self.milvus.insert(records)
+                await self.milvus.insert(records)
         
         print(f"Successfully imported {len(products)} products!")
     
@@ -137,7 +137,7 @@ class BatchImporter:
         records = []
         for product, result in zip(batch, results):
             if isinstance(result, Exception):
-                print(f"\nError processing {product.product_code}: {result}")
+                print(f"\nError processing {product.sku}: {result}")
                 continue
             records.append(result)
         
@@ -196,15 +196,23 @@ async def main():
     
     load_dotenv()
     
-    # 初始化组件
-    milvus_client = MilvusClientWrapper(
-        uri=os.getenv("ZILLIZ_CLOUD_URI"),
-        token=os.getenv("ZILLIZ_CLOUD_TOKEN"),
+    # 验证必要环境变量
+    aliyun_key = os.getenv("ALIYUN_DASHSCOPE_API_KEY")
+    zhipu_key = os.getenv("ZHIPU_API_KEY")
+    zilliz_uri = os.getenv("ZILLIZ_CLOUD_URI")
+    zilliz_token = os.getenv("ZILLIZ_CLOUD_TOKEN")
+    if not aliyun_key or not zhipu_key or not zilliz_uri or not zilliz_token:
+        print("Error: ALIYUN_DASHSCOPE_API_KEY, ZHIPU_API_KEY, ZILLIZ_CLOUD_URI, ZILLIZ_CLOUD_TOKEN must be set")
+        sys.exit(1)
+    
+    milvus_client = ZillizClient(
+        endpoint=zilliz_uri,
+        token=zilliz_token,
         collection_name=os.getenv("ZILLIZ_CLOUD_COLLECTION", "products")
     )
-    image_encoder = AliyunImageEncoder(os.getenv("ALIYUN_DASHSCOPE_API_KEY"))
-    text_encoder = ZhipuTextEncoder(os.getenv("ZHIPU_API_KEY"))
-    desc_generator = ZhipuDescriptionGenerator(os.getenv("ZHIPU_API_KEY"))
+    image_encoder = AliyunImageEncoder(aliyun_key)
+    text_encoder = ZhipuTextEncoder(zhipu_key)
+    desc_generator = ZhipuDescriptionGenerator(zhipu_key)
     
     importer = BatchImporter(
         milvus_client=milvus_client,
@@ -222,7 +230,6 @@ async def main():
         else:
             await importer.import_from_directory(args.input)
     finally:
-        milvus_client.close()
         await image_encoder.close()
         await text_encoder.close()
         await desc_generator.close()
