@@ -133,11 +133,10 @@ class ZillizClient:
     async def search_by_text(
         self,
         query_text: str,
-        anns_field: str = "LLMDescription",
+        anns_field: str = "sparse_bm25",
         limit: int = 20,
         output_fields: Optional[List[str]] = None
     ) -> List[Dict]:
-        """BM25 全文搜索"""
         payload = {
             "collectionName": self.collection_name,
             "data": [query_text],
@@ -149,12 +148,15 @@ class ZillizClient:
         
         url = f"{self.endpoint}/v2/vectordb/entities/search"
         client = await self._get_client()
-        response = await client.post(url, headers=self.headers, json=payload)
-        response.raise_for_status()
-        result = response.json()
+        try:
+            response = await client.post(url, headers=self.headers, json=payload)
+            response.raise_for_status()
+            result = response.json()
+        except Exception:
+            return []
         
         if result.get("code") != 0:
-            raise Exception(f"Zilliz API error: {result.get('message', 'Unknown error')}")
+            return []
         
         return self._parse_results(result.get("data", []))
     
